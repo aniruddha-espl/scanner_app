@@ -358,11 +358,32 @@ class ScannerApp(QMainWindow):
 
     def scan_document(self):
         try:
-            if platform.system() == 'Linux':
+            if platform.system() == 'Windows':
+                import wia
+                from PIL import Image
+                import io
+
+                # Initialize WIA
+                wia_dev = wia.Devices().Item(1)  # First available scanner
+                scan_item = wia_dev.Items().Item(1)  # First scan option
+                
+                # Scan and convert to QPixmap
+                img = scan_item.Transfer()
+                temp_file = "scan_temp.jpg"
+                img.SaveFile(temp_file)
+                
+                pixmap = QPixmap(temp_file)
+                if not pixmap.isNull():
+                    self.add_thumbnail(pixmap)
+                else:
+                    raise Exception("Failed to load scanned image")
+
+            elif platform.system() == 'Linux':
+                # Keep SANE code for Linux
                 sane.init()
                 devices = sane.get_devices()
                 if not devices:
-                    raise Exception("No scanner devices found.")
+                    raise Exception("No scanner found")
                 scanner = sane.open(devices[0][0])
                 scanner.start()
                 im = scanner.snap()
@@ -371,56 +392,8 @@ class ScannerApp(QMainWindow):
                 scanner.close()
                 sane.exit()
 
-            elif platform.system() == 'Windows':
-                if twain is None:
-                    raise ImportError("TWAIN module not available")
-                
-                sm = twain.SourceManager(0)
-                scanners = sm.source_list
-                if not scanners:
-                    raise Exception("No TWAIN-compatible scanners found.\n"
-                                    "1. Check scanner is powered on\n"
-                                    "2. Install manufacturer's TWAIN driver\n"
-                                    "3. Try a different USB port")
-
-                scanner_idx = 0
-                if len(scanners) > 1:
-                    scanner_idx = self._show_scanner_dialog(scanners)
-
-                scanner = sm.open_source(scanner_idx)
-                scanner.request_acquire(0, True)
-                
-                try:
-                    scanner.set_capability(
-                        twain.ICAP_XRESOLUTION, 
-                        twain.TWTY_FIX32, 
-                        300
-                    )
-                except:
-                    pass
-
-                image = scanner.xfer_image_native()
-                if image:
-                    temp_file = "scan_temp.jpg"
-                    image.save(temp_file)
-                    pixmap = QPixmap(temp_file)
-                    if not pixmap.isNull():
-                        self.add_thumbnail(pixmap)
-                    else:
-                        raise Exception("Failed to load scanned image")
-                else:
-                    raise Exception("Scanning was cancelled or failed")
-                    
-            else:
-                QMessageBox.critical(self, "Unsupported OS", "Scanning is only supported on Windows and Linux.")
-
         except Exception as e:
-            QMessageBox.critical(self, "Scan Error", f"An error occurred during scanning:\n{str(e)}")
-        finally:
-            if platform.system() == 'Windows' and 'scanner' in locals():
-                scanner.destroy()
-            if platform.system() == 'Windows' and 'sm' in locals():
-                sm.destroy()
+            QMessageBox.critical(self, "Scan Error", f"An error occurred:\n{str(e)}")
 
     def _show_scanner_dialog(self, scanners):
         """Show dialog to select scanner (simplified)"""
