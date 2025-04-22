@@ -17,20 +17,33 @@ jobs:
         
     - name: Install dependencies
       run: |
-        # Install only what we need (no TWAIN DSM attempt)
         python -m pip install --upgrade pip
-        pip install pyqt5==5.15.7 pywin32==306 pillow==9.5.0 pyinstaller==5.13.0
+        pip install pyqt5==5.15.7 pyinstaller==5.13.0 pillow==9.5.0
+        pip install python-dotenv  # For environment variables if needed
+        
+    - name: Verify PyQt5 installation
+      run: |
+        python -c "import os, PyQt5; print(f'PyQt5 path: {os.path.dirname(PyQt5.__file__)}')"
+        python -c "from PyQt5.QtCore import QLibraryInfo; print(f'Qt plugins path: {QLibraryInfo.path(QLibraryInfo.PluginsPath)}')"
         
     - name: Build with PyInstaller
       run: |
-        # Get PyQt5 path dynamically
+        # Find the correct PyQt5 plugins path
         $PYQT_PATH = python -c "import os, PyQt5; print(os.path.dirname(PyQt5.__file__))"
+        $QT_PLUGINS = "$PYQT_PATH\Qt5\plugins"
         
-        # Simplified build command
+        # Fallback check for different PyQt5 installations
+        if (-not (Test-Path "$QT_PLUGINS\platforms")) {
+            $QT_PLUGINS = "$PYQT_PATH\Qt\plugins"
+        }
+        
+        echo "Using Qt plugins from: $QT_PLUGINS"
+        
+        # Build command with verified paths
         pyinstaller --noconfirm --clean --log-level DEBUG `
           --onefile --windowed `
-          --add-data "$PYQT_PATH/Qt/plugins/platforms/*;platforms/" `
-          --add-data "$PYQT_PATH/Qt/plugins/imageformats/*;imageformats/" `
+          --add-data "$QT_PLUGINS/platforms/*;platforms/" `
+          --add-data "$QT_PLUGINS/imageformats/*;imageformats/" `
           --hidden-import PyQt5.QtCore `
           --hidden-import PyQt5.QtGui `
           --hidden-import PyQt5.QtWidgets `
@@ -39,14 +52,17 @@ jobs:
         # Verify build
         if (Test-Path -Path "dist\scanner_app.exe") {
             echo "Build successful!"
+            # Show executable size for verification
+            dir dist\scanner_app.exe
         } else {
             echo "::error::Build failed"
-            Get-Content "build\scanner_app\warn-scanner_app.txt" | Write-Host
+            if (Test-Path -Path "build\scanner_app\warn-scanner_app.txt") {
+                Get-Content "build\scanner_app\warn-scanner_app.txt"
+            }
             exit 1
         }
         
-    - name: Upload artifacts
-      if: success()
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ScannerApp
