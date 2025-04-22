@@ -9,48 +9,67 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python 3.9
+    - name: Set up Python 3.9 (64-bit)
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-        architecture: 'x64'  # Explicitly set to 64-bit
+        architecture: 'x64'  # Critical for TWAIN compatibility
         
-    - name: Install dependencies
+    - name: Install build tools
       run: |
-        python -m pip install --upgrade pip
+        choco install vcredist2015 -y  # Required for PyInstaller
+        python -m pip install --upgrade pip setuptools wheel
+        
+    - name: Install Python dependencies
+      run: |
         pip install -r requirements.txt
-        pip install pyinstaller
-        pip list  # Debug: Show installed packages
-        
-    - name: Verify PyQt5 plugins
+        pip install pyinstaller==5.13.0
+        pip install pyqt5==5.15.7  # Explicit reinstall to ensure proper installation
+        pip list
+
+    - name: Install TWAIN dependencies
       run: |
-        echo "Checking PyQt5 plugin paths..."
-        python -c "from PyQt5.QtCore import QLibraryInfo; print('Plugin paths:', QLibraryInfo.paths(QLibraryInfo.PluginsPath))"
+        # Download and install TWAIN DSM
+        Invoke-WebRequest -Uri "https://downloads.sourceforge.net/project/twain-dsm/TWAIN%20DSM%202.4.2/TWAINDSM_2.4.2.exe" -OutFile "TWAINDSM.exe"
+        Start-Process -Wait -FilePath "TWAINDSM.exe" -ArgumentList "/S"
         
-    - name: Build with PyInstaller
+    - name: Verify critical paths
       run: |
-        # Find the exact path to PyQt5 plugins
+        python -c "import os, PyQt5; print(f'PyQt5 location: {os.path.dirname(PyQt5.__file__)}')"
+        python -c "from PyQt5.QtCore import QLibraryInfo; print(f'QT Plugins: {QLibraryInfo.path(QLibraryInfo.PluginsPath)}')"
+        
+    - name: Build with PyInstaller (Windows-specific)
+      run: |
+        # Get exact PyQt5 path
         $PYQT_PATH = python -c "import os, PyQt5; print(os.path.dirname(PyQt5.__file__))"
-        echo "PyQt5 path: $PYQT_PATH"
         
-        # Build with detailed logging
-        pyinstaller --noconfirm --clean --log-level DEBUG --onefile --windowed `
+        # Build command with all required options
+        pyinstaller --noconfirm --clean --log-level DEBUG `
+          --onefile --windowed `
           --add-data "$PYQT_PATH/Qt/plugins/platforms/*;platforms/" `
           --add-data "$PYQT_PATH/Qt/plugins/imageformats/*;imageformats/" `
-          --add-data "$PYQT_PATH/Qt/plugins/styles/*;styles/" `
+          --hidden-import PyQt5.QtCore `
+          --hidden-import PyQt5.QtGui `
+          --hidden-import PyQt5.QtWidgets `
           --hidden-import twain `
-          --hidden-import PyQt5.sip `
+          --hidden-import pywintypes `
+          --runtime-tmpdir "." `  # Important for TWAIN compatibility
           scanner_app.py
         
-        # Debug: Show build artifacts
-        dir dist\
-        dir build\
+        # Verify executable was created
+        if (-not (Test-Path -Path "dist\scanner_app.exe")) {
+            echo "::error::Build failed - executable not found"
+            Get-Content "build\scanner_app\warn-scanner_app.txt" | Write-Host
+            exit 1
+        }
         
-    - name: Upload artifact
-      if: success()
+    - name: Upload artifacts
+      if: always()  # Upload even if build fails
       uses: actions/upload-artifact@v4
       with:
-        name: ScannerApp
+        name: BuildArtifacts
         path: |
           dist/
-          error_log.txt
+          build/
+          *.log
+          *.spec
