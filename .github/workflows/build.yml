@@ -65,7 +65,7 @@ jobs:
         
     - name: Upload artifacts
       if: always()  # Upload even if build fails
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: BuildArtifacts
         path: |
