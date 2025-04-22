@@ -38,6 +38,16 @@ jobs:
         }
         
         echo "Using Qt plugins from: $QT_PLUGINS"
+
+
+        pyinstaller --noconfirm --clean --log-level DEBUG `
+          --onefile --windowed `
+          --add-data "venv/Lib/site-packages/PyQt5/Qt/plugins/*;PyQt5/Qt/plugins/" `
+          --hidden-import PyQt5.QtCore `
+          --hidden-import PyQt5.QtGui `
+          --hidden-import PyQt5.QtWidgets `
+          --hidden-import wia `
+          scanner_app.py
         
         # Build command with all necessary components
         pyinstaller --noconfirm --clean --log-level DEBUG `
