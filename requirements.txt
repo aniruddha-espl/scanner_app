@@ -1,0 +1,5 @@
+PyQt5==5.15.7
+pywin32; sys_platform == 'win32'
+pillow==9.5.0
+python-sane; sys_platform == 'linux'
+twain==1.0.4; sys_platform == 'win32'
