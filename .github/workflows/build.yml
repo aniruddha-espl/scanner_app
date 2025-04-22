@@ -12,34 +12,34 @@ jobs:
     - name: Set up Python 3.9 (64-bit)
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.9.13'  # Explicit version matching the hosted toolcache
         architecture: 'x64'
         
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pyqt5==5.15.7 pyinstaller==5.13.0 pillow==9.5.0
-        pip install python-dotenv  # For environment variables if needed
+        pip install pyqtwebengine==5.15.6  # Additional Qt components
         
-    - name: Verify PyQt5 installation
+    - name: Verify installation
       run: |
-        python -c "import os, PyQt5; print(f'PyQt5 path: {os.path.dirname(PyQt5.__file__)}')"
-        python -c "from PyQt5.QtCore import QLibraryInfo; print(f'Qt plugins path: {QLibraryInfo.path(QLibraryInfo.PluginsPath)}')"
+        python -c "import os, PyQt5; print(f'PyQt5 location: {os.path.dirname(PyQt5.__file__)}')"
+        python -c "from PyQt5.QtCore import QLibraryInfo; print('Qt5 Plugins:', QLibraryInfo.location(QLibraryInfo.PluginsPath))"
         
     - name: Build with PyInstaller
       run: |
-        # Find the correct PyQt5 plugins path
+        # Get PyQt5 path (works with both Qt5 and Qt6)
         $PYQT_PATH = python -c "import os, PyQt5; print(os.path.dirname(PyQt5.__file__))"
         $QT_PLUGINS = "$PYQT_PATH\Qt5\plugins"
         
-        # Fallback check for different PyQt5 installations
+        # Fallback for different Qt installations
         if (-not (Test-Path "$QT_PLUGINS\platforms")) {
             $QT_PLUGINS = "$PYQT_PATH\Qt\plugins"
         }
         
         echo "Using Qt plugins from: $QT_PLUGINS"
         
-        # Build command with verified paths
+        # Build command with all necessary components
         pyinstaller --noconfirm --clean --log-level DEBUG `
           --onefile --windowed `
           --add-data "$QT_PLUGINS/platforms/*;platforms/" `
@@ -47,12 +47,13 @@ jobs:
           --hidden-import PyQt5.QtCore `
           --hidden-import PyQt5.QtGui `
           --hidden-import PyQt5.QtWidgets `
+          --hidden-import PyQt5.QtWebEngineWidgets `
           scanner_app.py
         
         # Verify build
         if (Test-Path -Path "dist\scanner_app.exe") {
             echo "Build successful!"
-            # Show executable size for verification
+            # Show executable information
             dir dist\scanner_app.exe
         } else {
             echo "::error::Build failed"
