@@ -7,31 +7,50 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
-    - name: Set up Python
+    - name: Set up Python 3.9
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
+        architecture: 'x64'  # Explicitly set to 64-bit
         
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
+        pip list  # Debug: Show installed packages
         
-    - name: Build executable
+    - name: Verify PyQt5 plugins
       run: |
-        pyinstaller --onefile --windowed ^
-          --add-data "venv/Lib/site-packages/PyQt5/Qt/plugins/platforms;platforms" ^
-          --add-data "venv/Lib/site-packages/PyQt5/Qt/plugins/imageformats;imageformats" ^
-          --add-data "venv/Lib/site-packages/PyQt5/Qt/plugins/styles;styles" ^
-          --hidden-import twain ^
-          --hidden-import sane ^
+        echo "Checking PyQt5 plugin paths..."
+        python -c "from PyQt5.QtCore import QLibraryInfo; print('Plugin paths:', QLibraryInfo.paths(QLibraryInfo.PluginsPath))"
+        
+    - name: Build with PyInstaller
+      run: |
+        # Find the exact path to PyQt5 plugins
+        $PYQT_PATH = python -c "import os, PyQt5; print(os.path.dirname(PyQt5.__file__))"
+        echo "PyQt5 path: $PYQT_PATH"
+        
+        # Build with detailed logging
+        pyinstaller --noconfirm --clean --log-level DEBUG --onefile --windowed `
+          --add-data "$PYQT_PATH/Qt/plugins/platforms/*;platforms/" `
+          --add-data "$PYQT_PATH/Qt/plugins/imageformats/*;imageformats/" `
+          --add-data "$PYQT_PATH/Qt/plugins/styles/*;styles/" `
+          --hidden-import twain `
+          --hidden-import PyQt5.sip `
           scanner_app.py
         
+        # Debug: Show build artifacts
+        dir dist\
+        dir build\
+        
     - name: Upload artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: ScannerApp
-        path: dist/
+        path: |
+          dist/
+          error_log.txt
