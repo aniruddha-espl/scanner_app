@@ -1,5 +1,5 @@
 PyQt5==5.15.7
-pywin32; sys_platform == 'win32'
+pywin32==306; sys_platform == 'win32'  # Pinned to specific version
 pillow==9.5.0
-python-sane; sys_platform == 'linux'
+python-sane==2.8.3; sys_platform == 'linux'  # Pinned version
 twain==1.0.4; sys_platform == 'win32'
