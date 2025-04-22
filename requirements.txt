@@ -1,5 +1,5 @@
 PyQt5==5.15.7
-pywin32==306; sys_platform == 'win32'  # Pinned to specific version
+pywin32==306; sys_platform == 'win32'
 pillow==9.5.0
-python-sane==2.8.3; sys_platform == 'linux'  # Pinned version
-twain==1.0.4; sys_platform == 'win32'
+python-sane==2.8.3; sys_platform == 'linux'
+# Removed twain from requirements - we'll handle it differently
